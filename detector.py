@@ -142,6 +142,8 @@ while(dir != END):
             dir = DOWN
         
 """
+#Stores the parents of all boards
+possibleBoards = []
 
 for i in range(len(contours)):#{
     #If the contour exists and is the leftmost contour
@@ -195,6 +197,8 @@ for i in range(len(contours)):#{
             continue
         if(fourCorners != 1):
             continue
+
+        possibleBoards.append(hierarchy[i][3])
         
         print("Number of siblings" + str(numOfSiblings))
         print("Corners: " + str(sixCorners) + "*6 " +  str(fourCorners) + "*4");
