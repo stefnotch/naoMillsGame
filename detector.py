@@ -1,6 +1,17 @@
 import cv2
 import numpy as np
 
+
+"""
+TODO:
+1) Decrement epsil (for approxContours) if the board isn't found
+2) Check out the Nao's camera (hopefully it is better than my crap cam)
+3) Figure out the best way to detect the board
+
+"""
+
+
+
 from random import randint
 
 #Detecting duplicates
@@ -12,34 +23,71 @@ MIN_AREA = 100
 MAX_AREA_DELTA = 1.3
 NONEXISTENT = -404
 
+video = cv2.VideoCapture(1)
+video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+if(not video.isOpened()):
+    video.open()
+
 def main():
     global MAX_DUPLICATE_DELTA
     global MIN_AREA
     global MAX_AREA_DELTA
     global NONEXISTENT
-    """
-    video = cv2.VideoCapture(1)
-    video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    
+    global video
     returnValue, colorImg = video.read()
-    """
-    colorImg = cv2.imread('2.jpg')
-    colorImg = cv2.resize(colorImg, (0,0), fx=0.5, fy=0.5)
-
-
+    if(returnValue == False):
+        print("No video?")
+        return
+    
+    #colorImg = cv2.imread('2.jpg')
+    #colorImg = cv2.resize(colorImg, (0,0), fx=0.5, fy=0.5)
+    
     img = cv2.cvtColor(colorImg, cv2.COLOR_BGR2GRAY)
-    img = cv2.blur(img, (3, 3))
+    img = cv2.blur(img, (5, 5))
+    #cv2.imshow("test", img)
+    
+    #edges = cv2.Canny(img, 70, 100)
+    """Auto canny
+    sigma = 0.33
+    # compute the median of the single channel pixel intensities
+    v = np.median(img)
 
-    edges = cv2.Canny(img, 70, 200)
+    # apply automatic Canny edge detection using the computed median
+    lower = int(max(0, (1.0 - sigma) * v))
+    upper = int(min(255, (1.0 + sigma) * v))
+    edges = cv2.Canny(img, lower, upper)
 
+    # return the edged image
+    """
+    
     #edges = cv2.bitwise_not(edges)
     #ret2,edges = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-    #edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 30)
+    #edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 33, 0)
 
-    #cv2.imshow("Can I?", edges)
+    #Also works reasonably well without the laplacian filter
+    edges = cv2.Laplacian(img,cv2.CV_8U, scale = 20)
+    edges = cv2.blur(edges, (3, 3))
+    
+    edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 33, 5)
+
+    edges = cv2.bitwise_not(edges)
+    
+    kernel = np.ones((5,5),np.uint8)
+    
+    #edges = cv2.dilate(edges,kernel,iterations = 1)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    
+    cv2.imshow("Can I?", edges)
 
     magicWhatDoesThisDo, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
+    if(hierarchy == None):
+        print("No edges")
+        return
+    
     '''
     >>> hierarchy
     array([[[ 7, -1,  1, -1],
@@ -69,10 +117,12 @@ def main():
     
     #indexes & indices are both purr-fectly acceptable words
     pawsibleBoardIndices = findBoards(hierarchy, contours)
-
+    
+    showContours(hierarchy, contours, colorImg)
+    
     for boardIndex in pawsibleBoardIndices:
         #Draw the board
-        colorImg = cv2.drawContours(colorImg, [contours[boardIndex]], -1, (0,0,255), 1)
+        colorImg = cv2.drawContours(colorImg, [contours[boardIndex]], -1, (0,0,255), 20)
         #With all of it's children
         childIndex = hierarchy[boardIndex][2]
         while(childIndex != -1):
@@ -95,15 +145,16 @@ def main():
     """
 
     cv2.imshow("Edgelords FTW" , colorImg)
-
-
-    while True: #{
-        if cv2.waitKey(50) & 0xFF == 27:
-            break
-    #}
-
-    cv2.destroyAllWindows()
 #}
+
+def showContours(hierarchy, contours, img):
+    for i in range(len(contours)):
+        if(hierarchy[i][0] != NONEXISTENT):
+            #The countour that we will draw
+            cnt = contours[i]
+            img = cv2.drawContours(img, [cnt], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
+            img = cv2.drawContours(img, cnt, -1, (0,0,255), 2)
+    cv2.imshow("ShowMe" , img)
 
 #I like GLSL, so I decided to implement this function...
 def clamp(num, minValue, maxValue):
@@ -112,6 +163,7 @@ def clamp(num, minValue, maxValue):
 #The maximum ratio delta should be something like 1.2
 #Only works for positive numbers
 def approxEqual(num1, num2, maxRatioDelta):
+    if(num2 == 0 or num1 == 0): return False
     ratio = num1 / num2
     if(num2 > num1):
         ratio = 1 / ratio
@@ -132,6 +184,8 @@ def cleanUpHierarchy(hierarchy, contours):#{
     for i in range(len(contours)):#{
         parentContour = hierarchy[i][3]
         childContour = hierarchy[i][2]
+        nextContour = hierarchy[i][0]
+        prevContour = hierarchy[i][1]
         area = cv2.contourArea(contours[i])
         #Has no adjacent contours
         #Has an area similar to the area of it's parent
@@ -145,8 +199,6 @@ def cleanUpHierarchy(hierarchy, contours):#{
         #}
 
         if(area < MIN_AREA):#{
-            nextContour = hierarchy[i][0]
-            prevContour = hierarchy[i][1]
             #Fix the parent
             if(parentContour != -1):
                 if(prevContour != -1):
@@ -195,7 +247,7 @@ def findBoards(hierarchy, contours):#{
             #0.03 = :D
             #0.02 -> too small
             #0.01 -> too small
-            
+            epsil = 0.03
             #Number of corners check
             sixCorners = 0
             fourCorners = 0
@@ -205,7 +257,6 @@ def findBoards(hierarchy, contours):#{
                     numOfSiblings += 1
                     #Calculates the contour perimeter or the curve length
                     perimeter = cv2.arcLength(contours[nextSiblingIndex], True)
-                    epsil = 0.04
                     approx = cv2.approxPolyDP(contours[nextSiblingIndex], perimeter * epsil, True) 
                     contours[nextSiblingIndex] = approx
                     if(len(approx) == 6):
@@ -213,8 +264,9 @@ def findBoards(hierarchy, contours):#{
                     elif(len(approx) == 4):
                         fourCorners += 1
                     else:
-                        print("Number of corners: " + str(len(approx)) + " Index: " + str(nextSiblingIndex));
-                                
+                        pass
+                        #print("Number of corners: " + str(len(approx)) + " Index: " + str(nextSiblingIndex));
+                
                 #Next sibling
                 nextSiblingIndex = hierarchy[nextSiblingIndex][0]
                 if(nextSiblingIndex == -1 or numOfSiblings > 9):
@@ -265,4 +317,12 @@ def findBoards(hierarchy, contours):#{
 #}
 
 
-main()
+while True: #{
+    main()
+    if cv2.waitKey(100) & 0xFF == 27:
+        break
+#}
+
+cv2.destroyAllWindows()
+
+
