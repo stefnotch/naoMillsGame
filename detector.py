@@ -4,7 +4,7 @@ import numpy as np
 
 """
 TODO:
-1) Decrement epsil (for approxContours) if the board isn't found
+1) Decrement epsil (for approxContours) if the board isn't found (loose constraints --> serious constraints)
 2) Check out the Nao's camera (hopefully it is better than my crap cam)
 3) Figure out the best way to detect the board
 
