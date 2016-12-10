@@ -40,7 +40,6 @@ def main():
 
     magicWhatDoesThisDo, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    print(contours.remove(1))
     '''
     >>> hierarchy
     array([[[ 7, -1,  1, -1],
@@ -66,14 +65,21 @@ def main():
 
     hierarchy = hierarchy[0]
 
-    cleanUpHierarchy(hierarchy)
+    cleanUpHierarchy(hierarchy, contours)
     
     #indexes & indices are both purr-fectly acceptable words
     pawsibleBoardIndices = findBoards(hierarchy, contours)
 
-    for boardIndex in pawsibleBoardIndices
-        contours[pawsibleBoardIndices][
-    
+    for boardIndex in pawsibleBoardIndices:
+        #Draw the board
+        colorImg = cv2.drawContours(colorImg, [contours[boardIndex]], -1, (0,0,255), 1)
+        #With all of it's children
+        childIndex = hierarchy[boardIndex][2]
+        while(childIndex != -1):
+            colorImg = cv2.drawContours(colorImg, [contours[childIndex]], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
+            childIndex = hierarchy[childIndex][0]
+
+    """    
     for i in range(len(contours)):
         if(hierarchy[i][0] != NONEXISTENT):
             hue = i/len(contours) * 255
@@ -86,7 +92,7 @@ def main():
             colorImg = cv2.drawContours(colorImg, [cnt], 0, (int(rgb[0][0][0]), int(rgb[0][0][1]), int(rgb[0][0][2])), 1)
             colorImg = cv2.drawContours(colorImg, cnt, -1, (0,0,255), 2)
             #colorImg = cv2.drawContours(colorImg, [cnt], 0, (randint(0,255),randint(0,255),randint(0,255)), cv2.FILLED)
-
+    """
 
     cv2.imshow("Edgelords FTW" , colorImg)
 
@@ -96,10 +102,7 @@ def main():
             break
     #}
 
-
     cv2.destroyAllWindows()
-
-
 #}
 
 #I like GLSL, so I decided to implement this function...
@@ -114,83 +117,50 @@ def approxEqual(num1, num2, maxRatioDelta):
         ratio = 1 / ratio
     return ratio < maxRatioDelta
 
-def removeContour(hierarchy, contourIndex):
+def invalidateContour(hierarchy, contourIndex):
     global NONEXISTENT
-    parentContour = hierarchy[contourIndex][3]
-    childContour = hierarchy[contourIndex][2]
-    prevContour = hierarchy[contourIndex][1]
-    nextContour = hierarchy[contourIndex][0]
+    hierarchy[contourIndex][0] = NONEXISTENT
+    hierarchy[contourIndex][1] = NONEXISTENT
+    hierarchy[contourIndex][2] = NONEXISTENT
+    hierarchy[contourIndex][3] = NONEXISTENT
 
-    #p -> me          ==> p
-    #p -> me -> child ==> p -> child
-    #p -> me v
-    #     sibling     ==> p -> sibling
-    #p -> me v-> child
-    #     sibling     ==> p -> child v
-    #                          sibling
-    #p -> sibling v
-    #     me v
-    #     sibling     ==> p -> sibling v
-    #                          sibling
-    #p -> sibling v
-    #     me v-> child
-    #     sibling     ==> p -> sibling v
-    #                          child v
-    #                          sibling
-
-    #If I have a child
-    if(childContour != -1):
-        #Replace me with the child
-        hierarchy[childContour][3] = parentContour
-        hierarchy[childContour][1] = prevContour
-        hierarchy[childContour][0] = nextContour
-        #parent fix
-        if(parentContour != -1):
-            hierarchy[parentContour][2] = childContour
-        #sibling fixes
-        if(prevContour != -1):
-            hierarchy[prevContour][0] = childContour
-        if(nextContour != -1):
-            hierarchy[nextContour][1] = childContour
-            
-    else:
-        adfghfdFIXMENOWHELPINEEDFIXINGBRODOSOMETHING
-    #Remove all references to this contour
-    if(parentContour != -1):
-        hierarchy[parentContour][2] = childContour
-    if(childContour != -1):
-        hierarchy[childContour][3] = parentContour
-    if(prevContour != -1):
-        hierarchy[prevContour][2] = nextContour
-    if(nextContour != -1):
-        hierarchy[nextContour][3] = prevContour
-    #If the contour had some adjacent contours
-        #The child takes the place of the contour
-        #Else, an adjacent contour takes its place
-    
-    hierarchy[i][0] = NONEXISTENT
-    hierarchy[i][1] = NONEXISTENT
-    hierarchy[i][2] = NONEXISTENT
-    hierarchy[i][3] = NONEXISTENT
-
-    
-
-def cleanUpHierarchy(hierarchy):#{
+def cleanUpHierarchy(hierarchy, contours):#{
     """
     Gets rid of the crappy duplicates and the too small contours
     """
+    global NONEXISTENT
     for i in range(len(contours)):#{
         parentContour = hierarchy[i][3]
         childContour = hierarchy[i][2]
         area = cv2.contourArea(contours[i])
-        #Child has no adjacent contours
-        #And the child has an area similar to the area of it's parent
-        if(hierarchy[i][0] == -1 and approxEqual(cv2.contourArea(contours[parentContour]), area, MAX_DUPLICATE_DELTA)):#{
+        #Has no adjacent contours
+        #Has an area similar to the area of it's parent
+        if(hierarchy[i][0] == -1 and hierarchy[i][1] == -1 and approxEqual(cv2.contourArea(contours[parentContour]), area, MAX_DUPLICATE_DELTA)):#{
             #print("removed: " + str(i))
-            removeContour(hierarchy, i)
+            if(parentContour != -1):
+                hierarchy[parentContour][2] = childContour
+            if(childContour != -1):
+                hierarchy[childContour][3] = parentContour
+            invalidateContour(hierarchy, i)
         #}
+
         if(area < MIN_AREA):#{
-            removeContour(hierarchy, i)
+            nextContour = hierarchy[i][0]
+            prevContour = hierarchy[i][1]
+            #Fix the parent
+            if(parentContour != -1):
+                if(prevContour != -1):
+                    hierarchy[parentContour][2] = prevContour
+                else:
+                    hierarchy[parentContour][2] = nextContour
+
+            #Fix the previous and next contours
+            if(prevContour != -1):
+                hierarchy[prevContour][0] = nextContour
+            if(nextContour != -1):
+                hierarchy[nextContour][1] = prevContour
+            #We don't need to deal with the children, because they will get removed in the later iterations (Their area is too small as well)
+            invalidateContour(hierarchy, i)
         #}
     #}
 #}
@@ -202,9 +172,9 @@ def findBoards(hierarchy, contours):#{
     Also messes around with the contours
     """
     global NONEXISTENT
+    
     #Stores the parents of all boards
-    possibleBoards = []
-
+    possibleBoards = []    
     for i in range(len(contours)):#{
         #If the contour exists and is the leftmost contour
         if(hierarchy[i][0] != NONEXISTENT and hierarchy[i][1] == -1):#{
