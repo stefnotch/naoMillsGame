@@ -22,13 +22,14 @@ MIN_AREA = 100
 #Checking if 2 areas are equal
 MAX_AREA_DELTA = 1.3
 NONEXISTENT = -404
-
-video = cv2.VideoCapture(1)
+#0 = Fujitsu Webcam
+video = cv2.VideoCapture(0)
 video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 if(not video.isOpened()):
-    video.open()
+    video.open(-1)
+    print("Most likely, this won't work")
 
 def main():
     global MAX_DUPLICATE_DELTA
@@ -45,9 +46,25 @@ def main():
     #colorImg = cv2.imread('2.jpg')
     #colorImg = cv2.resize(colorImg, (0,0), fx=0.5, fy=0.5)
     
+    #cv2.imshow("Color", colorImg)
+    
     img = cv2.cvtColor(colorImg, cv2.COLOR_BGR2GRAY)
-    img = cv2.blur(img, (5, 5))
-    #cv2.imshow("test", img)
+    
+    img = cv2.GaussianBlur(img, (7, 7), 0, 0)
+    
+    """
+    #Testing out the different image blurring algorithms
+    h, w = img.shape
+    dst = np.zeros((h, w))
+        
+    dst = cv2.blur(img, (7, 7))
+    cv2.imshow("test", dst)
+    dst = cv2.GaussianBlur(img, (7, 7), 0, 0)
+    cv2.imshow("testG", dst)
+    dst = cv2.medianBlur(img, 5)
+    cv2.imshow("testM", dst)
+    """
+     
     
     #edges = cv2.Canny(img, 70, 100)
     """Auto canny
@@ -84,7 +101,7 @@ def main():
 
     magicWhatDoesThisDo, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    if(hierarchy == None):
+    if(hierarchy is None):
         print("No edges")
         return
     
@@ -317,7 +334,7 @@ def findBoards(hierarchy, contours):#{
 #}
 
 
-while True: #{
+while(True): #{
     main()
     if cv2.waitKey(100) & 0xFF == 27:
         break
