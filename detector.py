@@ -23,13 +23,14 @@ MIN_AREA = 100
 MAX_AREA_DELTA = 1.3
 NONEXISTENT = -404
 #0 = Fujitsu Webcam
-video = cv2.VideoCapture(0)
-video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
+#2 = external cam
+video = cv2.VideoCapture(1)
 if(not video.isOpened()):
     video.open(-1)
     print("Most likely, this won't work")
+
+video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 def main():
     global MAX_DUPLICATE_DELTA
@@ -50,24 +51,26 @@ def main():
     
     img = cv2.cvtColor(colorImg, cv2.COLOR_BGR2GRAY)
     
-    img = cv2.GaussianBlur(img, (7, 7), 0, 0)
-    
+    blurSize = 5
+    img = cv2.GaussianBlur(img, (blurSize, blurSize), 0, 0)
     """
     #Testing out the different image blurring algorithms
     h, w = img.shape
     dst = np.zeros((h, w))
         
-    dst = cv2.blur(img, (7, 7))
+    dst = cv2.blur(img, (blurSize, blurSize))
     cv2.imshow("test", dst)
-    dst = cv2.GaussianBlur(img, (7, 7), 0, 0)
+    dst = cv2.GaussianBlur(img, (blurSize, blurSize), 0, 0)
     cv2.imshow("testG", dst)
-    dst = cv2.medianBlur(img, 5)
+    dst = cv2.medianBlur(img, blurSize)
     cv2.imshow("testM", dst)
     """
      
     
     #edges = cv2.Canny(img, 70, 100)
-    """Auto canny
+    
+    """
+    #Auto canny
     sigma = 0.33
     # compute the median of the single channel pixel intensities
     v = np.median(img)
@@ -76,7 +79,6 @@ def main():
     lower = int(max(0, (1.0 - sigma) * v))
     upper = int(min(255, (1.0 + sigma) * v))
     edges = cv2.Canny(img, lower, upper)
-
     # return the edged image
     """
     
@@ -84,20 +86,21 @@ def main():
     #ret2,edges = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     #edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 33, 0)
 
+    """
     #Also works reasonably well without the laplacian filter
-    edges = cv2.Laplacian(img,cv2.CV_8U, scale = 20)
+    edges = cv2.Laplacian(img,cv2.CV_8U, scale = 5)  
     edges = cv2.blur(edges, (3, 3))
-    
-    edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 33, 5)
-
+    edges = cv2.threshold(img,170,255,cv2.THRESH_BINARY)[1] #!!!![1]!!!!
+    cv2.imshow("Lap", edges)
+    """
+    edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 5)
     edges = cv2.bitwise_not(edges)
     
     kernel = np.ones((5,5),np.uint8)
-    
     #edges = cv2.dilate(edges,kernel,iterations = 1)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
     
-    cv2.imshow("Can I?", edges)
+    cv2.imshow("Adaptive Threshold", edges)
 
     magicWhatDoesThisDo, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
