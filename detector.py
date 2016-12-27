@@ -37,27 +37,27 @@ def main():
     global MIN_AREA
     global MAX_AREA_DELTA
     global NONEXISTENT
-    
+
     global video
     returnValue, colorImg = video.read()
     if(returnValue == False):
         print("No video?")
         return
-    
+
     #colorImg = cv2.imread('2.jpg')
     #colorImg = cv2.resize(colorImg, (0,0), fx=0.5, fy=0.5)
-    
+
     #cv2.imshow("Color", colorImg)
-    
+
     img = cv2.cvtColor(colorImg, cv2.COLOR_BGR2GRAY)
-    
+
     blurSize = 5
     img = cv2.GaussianBlur(img, (blurSize, blurSize), 0, 0)
     """
     #Testing out the different image blurring algorithms
     h, w = img.shape
     dst = np.zeros((h, w))
-        
+
     dst = cv2.blur(img, (blurSize, blurSize))
     cv2.imshow("test", dst)
     dst = cv2.GaussianBlur(img, (blurSize, blurSize), 0, 0)
@@ -65,10 +65,10 @@ def main():
     dst = cv2.medianBlur(img, blurSize)
     cv2.imshow("testM", dst)
     """
-     
-    
+
+
     #edges = cv2.Canny(img, 70, 100)
-    
+
     """
     #Auto canny
     sigma = 0.33
@@ -81,25 +81,26 @@ def main():
     edges = cv2.Canny(img, lower, upper)
     # return the edged image
     """
-    
+
     #edges = cv2.bitwise_not(edges)
     #ret2,edges = cv2.threshold(img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     #edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 33, 0)
 
     """
     #Also works reasonably well without the laplacian filter
-    edges = cv2.Laplacian(img,cv2.CV_8U, scale = 5)  
+    edges = cv2.Laplacian(img,cv2.CV_8U, scale = 5)
     edges = cv2.blur(edges, (3, 3))
     edges = cv2.threshold(img,170,255,cv2.THRESH_BINARY)[1] #!!!![1]!!!!
     cv2.imshow("Lap", edges)
     """
+    #TODO Tweak those parameters (the last 2)
     edges = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 5)
     edges = cv2.bitwise_not(edges)
-    
+
     kernel = np.ones((5,5),np.uint8)
     #edges = cv2.dilate(edges,kernel,iterations = 1)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-    
+
     cv2.imshow("Adaptive Threshold", edges)
 
     magicWhatDoesThisDo, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -107,7 +108,7 @@ def main():
     if(hierarchy is None):
         print("No edges")
         return
-    
+
     '''
     >>> hierarchy
     array([[[ 7, -1,  1, -1],
@@ -134,12 +135,28 @@ def main():
     hierarchy = hierarchy[0]
 
     cleanUpHierarchy(hierarchy, contours)
-    
+    #showContours(hierarchy, contours, colorImg, 0)
+
     #indexes & indices are both purr-fectly acceptable words
     pawsibleBoardIndices = findBoards(hierarchy, contours)
+
+    #Perspective transformation
+    if(len(pawsibleBoardIndices) >= 1):
+        boardImageSize = 300
+        boardImage = np.zeros((boardImageSize, boardImageSize))
+        boardContour = contours[pawsibleBoardIndices[0]]
+        
+        fromPoints = np.float32([boardContour[0][0], boardContour[1][0], boardContour[2][0], boardContour[3][0]])
+        toPoints = np.float32([[0, 0], [0, boardImageSize], [boardImageSize, boardImageSize], [boardImageSize, 0]])
+        matrix = cv2.getPerspectiveTransform(fromPoints, toPoints)
+
+        boardImage = cv2.warpPerspective(img, matrix, (boardImageSize,boardImageSize))
+        cv2.imshow("Warp Drive" , boardImage)
+
+
     
-    showContours(hierarchy, contours, colorImg)
-    
+    showContours(hierarchy, contours, colorImg, 1)
+
     for boardIndex in pawsibleBoardIndices:
         #Draw the board
         colorImg = cv2.drawContours(colorImg, [contours[boardIndex]], -1, (0,0,255), 20)
@@ -149,12 +166,12 @@ def main():
             colorImg = cv2.drawContours(colorImg, [contours[childIndex]], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
             childIndex = hierarchy[childIndex][0]
 
-    """    
+    """
     for i in range(len(contours)):
         if(hierarchy[i][0] != NONEXISTENT):
             hue = i/len(contours) * 255
             hsvColor = np.uint8([[[hue, 255, 255]]])
-            
+
             rgb = cv2.cvtColor(hsvColor, cv2.COLOR_HSV2BGR)
 
             #The countour that we will draw
@@ -167,14 +184,14 @@ def main():
     cv2.imshow("Edgelords FTW" , colorImg)
 #}
 
-def showContours(hierarchy, contours, img):
+def showContours(hierarchy, contours, img, showID = 0):
     for i in range(len(contours)):
         if(hierarchy[i][0] != NONEXISTENT):
             #The countour that we will draw
             cnt = contours[i]
             img = cv2.drawContours(img, [cnt], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
             img = cv2.drawContours(img, cnt, -1, (0,0,255), 2)
-    cv2.imshow("ShowMe" , img)
+    cv2.imshow("ShowMe" + str(showID), img)
 
 #I like GLSL, so I decided to implement this function...
 def clamp(num, minValue, maxValue):
@@ -244,9 +261,9 @@ def findBoards(hierarchy, contours):#{
     Also messes around with the contours
     """
     global NONEXISTENT
-    
+
     #Stores the parents of all boards
-    possibleBoards = []    
+    possibleBoards = []
     for i in range(len(contours)):#{
         #If the contour exists and is the leftmost contour
         if(hierarchy[i][0] != NONEXISTENT and hierarchy[i][1] == -1):#{
@@ -271,14 +288,23 @@ def findBoards(hierarchy, contours):#{
             #Number of corners check
             sixCorners = 0
             fourCorners = 0
-            
+
             while(True):#{
                 if(hierarchy[nextSiblingIndex][0] != NONEXISTENT):
                     numOfSiblings += 1
                     #Calculates the contour perimeter or the curve length
+
+
+
+
+
+
+                    #TODO: this needs to be improved
                     perimeter = cv2.arcLength(contours[nextSiblingIndex], True)
-                    approx = cv2.approxPolyDP(contours[nextSiblingIndex], perimeter * epsil, True) 
+                    approx = cv2.approxPolyDP(contours[nextSiblingIndex], perimeter * epsil, True)
                     contours[nextSiblingIndex] = approx
+
+
                     if(len(approx) == 6):
                         sixCorners += 1
                     elif(len(approx) == 4):
@@ -286,12 +312,12 @@ def findBoards(hierarchy, contours):#{
                     else:
                         pass
                         #print("Number of corners: " + str(len(approx)) + " Index: " + str(nextSiblingIndex));
-                
+
                 #Next sibling
                 nextSiblingIndex = hierarchy[nextSiblingIndex][0]
                 if(nextSiblingIndex == -1 or numOfSiblings > 9):
                     break
-                    
+
             #}
             if(numOfSiblings != 9):
                 continue #Pretty much the same as "return"
@@ -300,17 +326,25 @@ def findBoards(hierarchy, contours):#{
             if(fourCorners != 1):
                 continue
 
-            possibleBoards.append(hierarchy[i][3])
-            
+            #Parent check
+            boardIndex = hierarchy[i][3]
+            perimeter = cv2.arcLength(contours[boardIndex], True)
+            approx = cv2.approxPolyDP(contours[boardIndex], perimeter * epsil, True)
+            contours[boardIndex] = approx
+            if(len(approx) != 4):
+                continue
+
+            possibleBoards.append(boardIndex)
+
             print("Number of siblings" + str(numOfSiblings))
             print("Corners: " + str(sixCorners) + "*6 " +  str(fourCorners) + "*4");
-            
+
             #End of quick heuristics
             """
 
             #COMPARE EACH AREA WITH EACH AREA!!!!
             #4 areas equal to 4 other areas --> one match
-            
+
             print("Starting")
             print(area)
             #How many contours are there with the same area?
@@ -326,7 +360,7 @@ def findBoards(hierarchy, contours):#{
                     print("yo" + str(numOfSameAreaContours));
 
                 nextContourIndex = hierarchy[nextContourIndex][0]
-                   
+
                 if(numOfSameAreaContours >= 4):
                     print("Yay" + str(numOfSameAreaContours))
             """
