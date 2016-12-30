@@ -13,11 +13,12 @@ TODO:
 
 
 from random import randint
-
+WIDTH = 640
+HEIGHT = 480
 #Detecting duplicates
 MAX_DUPLICATE_DELTA = 1.1
 #Minimum area
-MIN_AREA = 100
+MIN_AREA = 0.005 * WIDTH * HEIGHT
 
 #Checking if 2 areas are equal
 MAX_AREA_DELTA = 1.3
@@ -29,8 +30,8 @@ if(not video.isOpened()):
     video.open(-1)
     print("Most likely, this won't work")
 
-video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+video.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
+video.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
 
 def main():
     global MAX_DUPLICATE_DELTA
@@ -191,7 +192,7 @@ def showContours(hierarchy, contours, img, showID = 0):
             cnt = contours[i]
             img = cv2.drawContours(img, [cnt], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
             img = cv2.drawContours(img, cnt, -1, (0,0,255), 2)
-    cv2.imshow("ShowMe" + str(showID), img)
+    #cv2.imshow("ShowMe" + str(showID), img)
 
 #I like GLSL, so I decided to implement this function...
 def clamp(num, minValue, maxValue):
@@ -294,16 +295,10 @@ def findBoards(hierarchy, contours):#{
                     numOfSiblings += 1
                     #Calculates the contour perimeter or the curve length
 
-
-
-
-
-
-                    #TODO: this needs to be improved
                     perimeter = cv2.arcLength(contours[nextSiblingIndex], True)
                     approx = cv2.approxPolyDP(contours[nextSiblingIndex], perimeter * epsil, True)
+                    #approx = approxPolyFixCorners(approx, 60)
                     contours[nextSiblingIndex] = approx
-
 
                     if(len(approx) == 6):
                         sixCorners += 1
@@ -330,6 +325,7 @@ def findBoards(hierarchy, contours):#{
             boardIndex = hierarchy[i][3]
             perimeter = cv2.arcLength(contours[boardIndex], True)
             approx = cv2.approxPolyDP(contours[boardIndex], perimeter * epsil, True)
+            #approx = approxPolyFixCorners(approx, 60)
             contours[boardIndex] = approx
             if(len(approx) != 4):
                 continue
@@ -369,6 +365,74 @@ def findBoards(hierarchy, contours):#{
 
     return possibleBoards
 #}
+
+
+def approxPolyFixCorners(contour, minAngle):
+    """
+    Fixes the corners of an approximated contour
+    """
+    #TODO: this needs to be improved
+    
+    minDP = np.cos(np.radians(minAngle))
+    #corners = np.array([[]], dtype=np.int32)
+    length = len(contour)
+    if(length < 3):
+        return contour
+
+    index = 0
+    while(index < length and length >= 3):
+        length = len(contour)
+        
+        prevIndex = (index - 1) % length
+        index = index % length
+        nextIndex = (index + 1) % length
+        #Dot Product
+        #Even faster: http://stackoverflow.com/a/14675998/3492994
+        prevPoint = contour[prevIndex][0]
+        currPoint = contour[index][0]
+        nextPoint = contour[nextIndex][0]
+        v1 = np.subtract(prevPoint, currPoint)
+        v2 = np.subtract(nextPoint, currPoint)
+        v1_len = np.linalg.norm(v1)
+        v2_len = np.linalg.norm(v2)
+        
+        v1 = v1 / v1_len
+        v2 = v2 / v2_len
+        dp = np.dot(v1, v2)
+        #If the dot product is greater than the minimum
+        #dp at 90 deg = 0
+        if(abs(dp) > minDP):
+            if(v1_len >= v2_len):
+                #Remove the next point
+                contour = np.delete(contour, (nextIndex)%length, 0)
+            else:
+                #Remove the previous point
+                contour = np.delete(contour, (prevIndex)%length, 0)
+                if(index > 0):
+                    index -= 1
+        else:
+            #Go to the next point
+            index += 1
+        
+    return contour
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 while(True): #{
