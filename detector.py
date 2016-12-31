@@ -9,7 +9,7 @@ TODO:
 3) Figure out the best way to detect the board
 
 """
-
+global tester
 
 
 from random import randint
@@ -25,7 +25,7 @@ MAX_AREA_DELTA = 1.3
 NONEXISTENT = -404
 #0 = Fujitsu Webcam
 #2 = external cam
-video = cv2.VideoCapture(1)
+video = cv2.VideoCapture(0)
 if(not video.isOpened()):
     video.open(-1)
     print("Most likely, this won't work")
@@ -147,7 +147,7 @@ def main():
         boardImage = np.zeros((boardImageSize, boardImageSize))
         boardContour = contours[pawsibleBoardIndices[0]]
         
-        fromPoints = np.float32([boardContour[0][0], boardContour[1][0], boardContour[2][0], boardContour[3][0]])
+        fromPoints = np.float32([boardContour[0,0], boardContour[1,0], boardContour[2,0], boardContour[3,0]])
         toPoints = np.float32([[0, 0], [0, boardImageSize], [boardImageSize, boardImageSize], [boardImageSize, 0]])
         matrix = cv2.getPerspectiveTransform(fromPoints, toPoints)
 
@@ -162,14 +162,14 @@ def main():
         #Draw the board
         colorImg = cv2.drawContours(colorImg, [contours[boardIndex]], -1, (0,0,255), 20)
         #With all of it's children
-        childIndex = hierarchy[boardIndex][2]
+        childIndex = hierarchy[boardIndex,2]
         while(childIndex != -1):
             colorImg = cv2.drawContours(colorImg, [contours[childIndex]], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
-            childIndex = hierarchy[childIndex][0]
+            childIndex = hierarchy[childIndex,0]
 
     """
     for i in range(len(contours)):
-        if(hierarchy[i][0] != NONEXISTENT):
+        if(hierarchy[i,0] != NONEXISTENT):
             hue = i/len(contours) * 255
             hsvColor = np.uint8([[[hue, 255, 255]]])
 
@@ -187,7 +187,7 @@ def main():
 
 def showContours(hierarchy, contours, img, showID = 0):
     for i in range(len(contours)):
-        if(hierarchy[i][0] != NONEXISTENT):
+        if(hierarchy[i,0] != NONEXISTENT):
             #The countour that we will draw
             cnt = contours[i]
             img = cv2.drawContours(img, [cnt], 0, (randint(0,255),randint(0,255),randint(0,255)), 1)
@@ -209,10 +209,10 @@ def approxEqual(num1, num2, maxRatioDelta):
 
 def invalidateContour(hierarchy, contourIndex):
     global NONEXISTENT
-    hierarchy[contourIndex][0] = NONEXISTENT
-    hierarchy[contourIndex][1] = NONEXISTENT
-    hierarchy[contourIndex][2] = NONEXISTENT
-    hierarchy[contourIndex][3] = NONEXISTENT
+    hierarchy[contourIndex,0] = NONEXISTENT
+    hierarchy[contourIndex,1] = NONEXISTENT
+    hierarchy[contourIndex,2] = NONEXISTENT
+    hierarchy[contourIndex,3] = NONEXISTENT
 
 def cleanUpHierarchy(hierarchy, contours):#{
     """
@@ -220,19 +220,19 @@ def cleanUpHierarchy(hierarchy, contours):#{
     """
     global NONEXISTENT
     for i in range(len(contours)):#{
-        parentContour = hierarchy[i][3]
-        childContour = hierarchy[i][2]
-        nextContour = hierarchy[i][0]
-        prevContour = hierarchy[i][1]
+        parentContour = hierarchy[i,3]
+        childContour = hierarchy[i,2]
+        nextContour = hierarchy[i,0]
+        prevContour = hierarchy[i,1]
         area = cv2.contourArea(contours[i])
         #Has no adjacent contours
         #Has an area similar to the area of it's parent
-        if(hierarchy[i][0] == -1 and hierarchy[i][1] == -1 and approxEqual(cv2.contourArea(contours[parentContour]), area, MAX_DUPLICATE_DELTA)):#{
+        if(hierarchy[i,0] == -1 and hierarchy[i,1] == -1 and approxEqual(cv2.contourArea(contours[parentContour]), area, MAX_DUPLICATE_DELTA)):#{
             #print("removed: " + str(i))
             if(parentContour != -1):
-                hierarchy[parentContour][2] = childContour
+                hierarchy[parentContour,2] = childContour
             if(childContour != -1):
-                hierarchy[childContour][3] = parentContour
+                hierarchy[childContour,3] = parentContour
             invalidateContour(hierarchy, i)
         #}
 
@@ -240,15 +240,15 @@ def cleanUpHierarchy(hierarchy, contours):#{
             #Fix the parent
             if(parentContour != -1):
                 if(prevContour != -1):
-                    hierarchy[parentContour][2] = prevContour
+                    hierarchy[parentContour,2] = prevContour
                 else:
-                    hierarchy[parentContour][2] = nextContour
+                    hierarchy[parentContour,2] = nextContour
 
             #Fix the previous and next contours
             if(prevContour != -1):
-                hierarchy[prevContour][0] = nextContour
+                hierarchy[prevContour,0] = nextContour
             if(nextContour != -1):
-                hierarchy[nextContour][1] = prevContour
+                hierarchy[nextContour,1] = prevContour
             #We don't need to deal with the children, because they will get removed in the later iterations (Their area is too small as well)
             invalidateContour(hierarchy, i)
         #}
@@ -267,7 +267,7 @@ def findBoards(hierarchy, contours):#{
     possibleBoards = []
     for i in range(len(contours)):#{
         #If the contour exists and is the leftmost contour
-        if(hierarchy[i][0] != NONEXISTENT and hierarchy[i][1] == -1):#{
+        if(hierarchy[i,0] != NONEXISTENT and hierarchy[i,1] == -1):#{
             #Contour
             cnt = contours[i]
             #Area
@@ -291,7 +291,7 @@ def findBoards(hierarchy, contours):#{
             fourCorners = 0
 
             while(True):#{
-                if(hierarchy[nextSiblingIndex][0] != NONEXISTENT):
+                if(hierarchy[nextSiblingIndex,0] != NONEXISTENT):
                     numOfSiblings += 1
                     #Calculates the contour perimeter or the curve length
 
@@ -309,7 +309,7 @@ def findBoards(hierarchy, contours):#{
                         #print("Number of corners: " + str(len(approx)) + " Index: " + str(nextSiblingIndex));
 
                 #Next sibling
-                nextSiblingIndex = hierarchy[nextSiblingIndex][0]
+                nextSiblingIndex = hierarchy[nextSiblingIndex,0]
                 if(nextSiblingIndex == -1 or numOfSiblings > 9):
                     break
 
@@ -322,14 +322,14 @@ def findBoards(hierarchy, contours):#{
                 continue
 
             #Parent check
-            boardIndex = hierarchy[i][3]
+            boardIndex = hierarchy[i,3]
             perimeter = cv2.arcLength(contours[boardIndex], True)
             approx = cv2.approxPolyDP(contours[boardIndex], perimeter * epsil, True)
             #approx = approxPolyFixCorners(approx, 60)
             contours[boardIndex] = approx
             if(len(approx) != 4):
                 continue
-
+            contourSimilarAngles(approx, None, 1)
             possibleBoards.append(boardIndex)
 
             print("Number of siblings" + str(numOfSiblings))
@@ -366,7 +366,35 @@ def findBoards(hierarchy, contours):#{
     return possibleBoards
 #}
 
+def contourSimilarAngles(contour, compareTo, angleEpsilon, radians=False):
+    """
+    compareTo: An array of angles in the range range: [0-180[
+    angleEpsilon: An angle
+    """
+    #if(not radians):
+    #    compareTo = np.radians(compareTo)
+    
+    dpEpsilon = np.cos(np.radians(angleEpsilon))
 
+    #[start:stop:step]
+    #[0:-1] -> element 0 to last-1
+    vectors = contour[0:-1] - contour[1:]
+    #Add the last line (connecting the first and last point)
+    vectors = np.append(vectors, [contour[-1] - contour[0]], axis=0)
+
+    xDeltas = vectors[0:,0,0]
+    yDeltas = vectors[0:,0,1]
+    
+    angles = np.arctan2(yDeltas, xDeltas)
+    angles = np.mod(angles, np.pi)
+
+    #Now we can start comparing the stuff
+    
+    global tester
+    tester = angles
+    return True
+
+    
 def approxPolyFixCorners(contour, minAngle):
     """
     Fixes the corners of an approximated contour
