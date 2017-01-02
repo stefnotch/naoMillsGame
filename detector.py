@@ -297,7 +297,10 @@ def findBoards(hierarchy, contours):#{
 
                     perimeter = cv2.arcLength(contours[nextSiblingIndex], True)
                     approx = cv2.approxPolyDP(contours[nextSiblingIndex], perimeter * epsil, True)
-                    #approx = approxPolyFixCorners(approx, 60)
+                    
+                    if(contourSimilarAngles(approx, [90,0,90,0,90,0], 20)):
+                        print("Similar")
+                        
                     contours[nextSiblingIndex] = approx
 
                     if(len(approx) == 6):
@@ -329,7 +332,7 @@ def findBoards(hierarchy, contours):#{
             contours[boardIndex] = approx
             if(len(approx) != 4):
                 continue
-            contourSimilarAngles(approx, None, 1)
+            
             possibleBoards.append(boardIndex)
 
             print("Number of siblings" + str(numOfSiblings))
@@ -371,11 +374,12 @@ def contourSimilarAngles(contour, compareTo, angleEpsilon, radians=False):
     compareTo: An array of angles in the range range: [0-180[
     angleEpsilon: An angle
     """
-    #if(not radians):
-    #    compareTo = np.radians(compareTo)
+    if(not radians):
+        compareTo = np.radians(compareTo)
     
-    dpEpsilon = np.cos(np.radians(angleEpsilon))
-
+    angleEpsilon = np.radians(angleEpsilon)
+    #Use SciPy?
+    
     #[start:stop:step]
     #[0:-1] -> element 0 to last-1
     vectors = contour[0:-1] - contour[1:]
@@ -387,12 +391,42 @@ def contourSimilarAngles(contour, compareTo, angleEpsilon, radians=False):
     
     angles = np.arctan2(yDeltas, xDeltas)
     angles = np.mod(angles, np.pi)
+    rotOffsets = compareTo[0] - angles
 
-    #Now we can start comparing the stuff
+    anglesLen = len(angles)
+    compareToLen = len(compareTo)
     
-    global tester
-    tester = angles
-    return True
+    #Now we can start comparing the stuff
+    for i in range(len(rotOffsets)):
+        match = True
+        currRotOffset = rotOffsets[i]
+        compareToIndex = -compareToLen #So that the index can wrap around one time
+        for j in range(-anglesLen + i, i):
+            if(np.isclose((angles[j] + currRotOffset) % np.pi, compareTo[compareToIndex], atol = angleEpsilon)):
+               pass
+            else:
+                compareToIndex += 1                 
+                if(np.isclose((angles[j] + currRotOffset) % np.pi, compareTo[compareToIndex], atol = angleEpsilon)):
+                  pass
+                else:
+                  match = False
+                  break
+
+        if(match):
+            return True
+        """
+        index = i
+        for j in range(len(angles)):
+            if((angles[j] + rot) == compareTo[index]):
+                
+            elif(compareTo[index + 1] == (angles[j] + rot)):
+                index += 1
+            else:
+                match = False
+                break
+        """
+
+    return False
 
     
 def approxPolyFixCorners(contour, minAngle):
